@@ -10,17 +10,10 @@ import time
 
 class Sdarot:
 
-	_HEADERS = {	'Accept'			: r'application/json,text/javascript,*/*; q=0.01',
-					'Accept-Encoding'	: r'',
-					'Accept-Language'	: r'he-IL,he;q=0.8,en-US;q=0.6,en;q=0.4',
-					'Connection'		: r'keep-alive',
-					'Content-Type'		: r'application/x-www-form-urlencoded; charset=UTF-8',
-					'Cookie'			: r'jwplayer.volume=100;',
-					'Host'				: r'www.sdarot.tv',
-					'Origin'			: r'http://www.sdarot.tv',
-					'Referer'			: r'http://www.sdarot.tv/watch/53-%D7%90%D7%99%D7%9A-%D7%A4%D7%92%D7%A9%D7%AA%D7%99-%D7%90%D7%AA-%D7%90%D7%9E%D7%90-how-i-met-your-mother/season/1/episode/10',
-					'User-Agent'		: r'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2062.103 Safari/537.36',
-					'X-Requested-With'	: r'XMLHttpRequest'}
+	_HEADERS = {'Cookie'			: r'jwplayer.volume=100;',
+				'Referer'			: r'http://www.sdarot.tv/watch/53-%D7%90%D7%99%D7%9A-%D7%A4%D7%92%D7%A9%D7%AA%D7%99-%D7%90%D7%AA-%D7%90%D7%9E%D7%90-how-i-met-your-mother/season/1/episode/10',
+				'User-Agent'		: r'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2062.103 Safari/537.36',
+				'X-Requested-With'	: r'XMLHttpRequest'}
 	_BUFFER_SIZE = (32 * 1024)
 
 	@staticmethod
@@ -31,7 +24,7 @@ class Sdarot:
 		season  - season number
 		episode - episode number (omit this arg to request a season)
 
-		Returns a dictionary holding the content of the loaded webpage 
+		Returns either a dictionary or a list of dictionaries holding the content of the loaded webpage 
 		'''
 
 		headers = Sdarot._HEADERS
@@ -42,7 +35,7 @@ class Sdarot:
 			data_list = ('episodeList=true', 'serie=%d' % serie, 'season=%d' % season)
 
 		data = '&'.join(data_list)
-		headers['Content-Length'] = '%s' % len(data)
+		headers['Content-Length'] = '%d' % len(data)
 
 		req = urllib2.Request(r'http://www.sdarot.tv/ajax/watch', data, headers)
 		res = urllib2.urlopen(req)
@@ -67,7 +60,7 @@ class Sdarot:
 		with open(filename, 'wb') as outfile:
 			while buffer:
 				buffer = res.read(Sdarot._BUFFER_SIZE)
-				
+
 				if buffer:
 					curr_size += len(buffer)
 
@@ -76,6 +69,15 @@ class Sdarot:
 
 					outfile.write(buffer)
 			print
+
+	@staticmethod
+	def _episode_url(epi):
+		if epi.has_key('error'):
+			raise LookupError()
+
+		epi['sd'] = epi['watch']['sd']
+
+		return r'http://%(url)s/watch/sd/%(VID)s.mp4?token=%(sd)s&time=%(time)d' % epi
 
 	@staticmethod
 	def download_episode(serie, season, episode):
@@ -91,20 +93,19 @@ class Sdarot:
 
 		print 'downloading episode %02d ...' % episode,
 
-		html = Sdarot._request_page(serie, season, episode)
+		try:
+			epi = Sdarot._request_page(serie, season, episode)
 
-		if html.has_key('error'):
-			print 'error'
-
-			time.sleep(2)
-		else:
-			url = r'http://%s/watch/sd/%s.mp4?token=%s&time=%d' % (html['url'], html['VID'], html['watch']['sd'], html['time'])
+			url = Sdarot._episode_url(epi)
 			filename = '%s-%02dx%02d.mp4' % (serie, season, episode)
 
-			try:
-				Sdarot._download(url, filename)
-			except KeyboardInterrupt:
-				print 'cancelled by user'
+			Sdarot._download(url, filename)
+		except LookupError:
+			print 'error!'
+			time.sleep(1.337)
+
+		except KeyboardInterrupt:
+			print 'cancelled by user'
 
 	@staticmethod
 	def get_episodes_list(serie, season):
@@ -116,9 +117,9 @@ class Sdarot:
 		Returns a list of episodes numbers
 		'''
 
-		html = Sdarot._request_page(serie, season)
+		jobj = Sdarot._request_page(serie, season)
 
-		return [int(episode['episode']) for episode in html]
+		return [int(episode['episode']) for episode in jobj]
 
 	@staticmethod
 	def download_season(serie, season):
@@ -139,13 +140,17 @@ class Sdarot:
 			print 'terminated by user'
 
 if __name__ == '__main__':
-	import sys
+	from sys import argv
 
-	if len(sys.argv) < 3:
-		print 'usage: %s serie season [episode]'
-	elif len(sys.argv) == 3:
-		Sdarot.download_season(sys.argv[1:])
-	elif len(sys.argv) == 4:
-		Sdarot.download_episode(sys.argv[1:])
+	iargs = map(int, argv[1:])
+
+	if len(iargs) < 2:
+		print 'usage: %s serie season [episode]' % argv[0]
+
+	elif len(iargs) == 2:
+		Sdarot.download_season(*iargs)
+
+	elif len(iargs) == 3:
+		Sdarot.download_episode(*iargs)
 
 # end
