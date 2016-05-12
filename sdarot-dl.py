@@ -29,7 +29,7 @@ class Sdarot:
 
 		headers = Sdarot._HEADERS
 
-		if episode:
+		if episode is not None:
 			data_list = ('watch=false', 'serie=%d' % serie, 'season=%d' % season, 'episode=%d' % episode)
 		else:
 			data_list = ('episodeList=true', 'serie=%d' % serie, 'season=%d' % season)
